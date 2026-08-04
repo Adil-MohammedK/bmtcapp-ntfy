@@ -1,0 +1,14 @@
+{
+  "name": "bmtc-live-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @bmtc-tracker/api\" \"npm run dev -w @bmtc-tracker/web\"",
+    "build": "npm run build -w @bmtc-tracker/api && npm run build -w @bmtc-tracker/web",
+    "start": "npm run start -w @bmtc-tracker/api",
+    "typecheck": "npm run typecheck -w @bmtc-tracker/api && npm run typecheck -w @bmtc-tracker/web"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" },
+  "engines": { "node": ">=20" }
+}
