@@ -7,6 +7,7 @@ const client = new BengaluruTransitClient({ language: "en" }) as unknown as {
   routes: {
     searchRoutes(input: { query: string }): Promise<{ items: Array<{ parentRouteId: string; routeNo?: string; [key: string]: unknown }> }>;
     searchByRouteDetails(input: { parentRouteId: string }): Promise<{ up: DirectionDetails; down: DirectionDetails }>;
+    getStationTrips(input: { stationId: string; tripType: "running" }): Promise<{ items: Array<{ routeNo: string; routeName: string; fromStationName: string; toStationName: string; vehicleId: string; busNo: string; arrivalTime?: string; deviceStatusFlag: number }> }>;
   };
   vehicles: { getVehicleTrip(input: { vehicleId: string }): Promise<{ routeStops: GeoCollection }> };
 };
@@ -49,6 +50,9 @@ async function etaForVehicle(feature: GeoFeature, direction: "up" | "down", targ
     nextStop: target ? asText(target.properties.nextStop ?? target.properties.next_stop) : asText(feature.properties.nextStop ?? feature.properties.next_stop),
     routeNo: target ? asText(target.properties.routeNo ?? target.properties.route_no) : null,
     servesTarget: target !== undefined,
+    targetStopName: target ? asText(target.properties.stopName ?? target.properties.stop_name) : null,
+    routeStart: target ? asText(target.properties.sourceStation ?? target.properties.source_station) : null,
+    routeEnd: target ? asText(target.properties.destinationStation ?? target.properties.destination_station) : null,
   };
 }
 
@@ -61,6 +65,33 @@ function etaSortValue(eta: ApproachingBus["eta"]): number {
 export async function searchRoutes(query: string) {
   const result = await client.routes.searchRoutes({ query });
   return result.items.map((item) => ({ parentRouteId: item.parentRouteId, routeNo: asText(item.routeNo ?? item.route_no) ?? query }));
+}
+
+export interface LiveStopBus {
+  routeNo: string;
+  vehicleNumber: string;
+  routeStart: string;
+  routeEnd: string;
+  targetStopName: string | null;
+  eta: string | null;
+}
+
+/** Finds one currently running service reported at a stop, for test alerts. */
+export async function getAnyLiveBusAtStop(stopId: string): Promise<LiveStopBus | null> {
+  const stationTrips = await client.routes.getStationTrips({ stationId: stopId, tripType: "running" });
+  const candidate = stationTrips.items.find((item) => item.deviceStatusFlag === 1) ?? stationTrips.items[0];
+  if (!candidate) return null;
+
+  const vehicleTrip = await client.vehicles.getVehicleTrip({ vehicleId: candidate.vehicleId });
+  const target = vehicleTrip.routeStops.features.find((stop) => stopId === asText(stop.properties.stopId));
+  return {
+    routeNo: candidate.routeNo,
+    vehicleNumber: candidate.busNo,
+    routeStart: candidate.fromStationName,
+    routeEnd: candidate.toStationName,
+    targetStopName: target ? asText(target.properties.stopName) : null,
+    eta: target ? asText(target.properties.eta) : null,
+  };
 }
 
 export async function getTrackerSnapshot(routeNo: string, targetStopId: string): Promise<TrackerSnapshot> {

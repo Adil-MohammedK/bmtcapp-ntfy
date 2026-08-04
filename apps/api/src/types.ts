@@ -20,6 +20,9 @@ export interface ApproachingBus {
   nextStop: string | null;
   routeNo: string | null;
   servesTarget: boolean;
+  targetStopName: string | null;
+  routeStart: string | null;
+  routeEnd: string | null;
 }
 
 export interface TrackerSnapshot {
