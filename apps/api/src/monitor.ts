@@ -45,7 +45,7 @@ function indiaClock() {
 function activeWindow(): Omit<MonitorStatus, "targetStopId" | "etaLimitMinutes" | "provider" | "providers" | "lastRunAt" | "lastError"> {
   const { hour, minute } = indiaClock();
   const now = hour * 60 + minute;
-  if (now >= 4 * 60 && now <= 10 * 60 + 30) return { active: true, window: "morning", direction: "up", routes: MORNING_ROUTES };
+  if (now >= 8 * 60 && now <= 10 * 60 + 30) return { active: true, window: "morning", direction: "up", routes: MORNING_ROUTES };
   if (now >= 16 * 60 && now <= 18 * 60 + 30) return { active: true, window: "evening", direction: "down", routes: EVENING_ROUTES };
   return { active: false, window: null, direction: null, routes: [] };
 }

@@ -44,7 +44,7 @@ Copy `.env.example` to `.env`, then configure either provider or **both**:
 
 When both are configured, every test and live alert is delivered to both ntfy and Home Assistant. Set `INFO=true` to log monitor starts, windows, and delivery results; use `DEBUG=true` for per-bus ETA and delivery detail.
 
-The server checks every minute in `Asia/Kolkata`: routes **314-A** and **314-B** in the **UP** direction from 4:00 AM to 10:30 AM for stop **21945**, then in the **DOWN** direction from 4:00 PM to 6:30 PM for stop **21702**. It sends one alert per bus per window when the SDK returns an ETA of 10 minutes or less. Use the `MORNING_*`, `EVENING_*`, and `ALERT_ETA_MINUTES` environment values to adjust that behavior.
+The server checks every minute in `Asia/Kolkata`: routes **314-A** and **314-B** in the **UP** direction from 8:00 AM to 10:30 AM for stop **21945**, then in the **DOWN** direction from 4:00 PM to 6:30 PM for stop **21702**. It sends one alert per bus per window when the SDK returns an ETA of 10 minutes or less. Use the `MORNING_*`, `EVENING_*`, and `ALERT_ETA_MINUTES` environment values to adjust that behavior.
 
 To test your phone setup immediately, set a long random `NOTIFICATION_TEST_TOKEN` in `.env`, restart the API, then run:
 
@@ -62,6 +62,13 @@ apps/api       Express adapter around bengaluru-transit
 apps/web       React + Vite + Leaflet interface
 Dockerfile     production API/image build
 ```
+
+## Future work
+
+- Add a route selector and stop selector to the web interface
+- Show all routes for a selected stop
+- Home Assistant integration to show live vehicles and ETAs in the HA dashboard
+- Option to select a different time window for monitoring. Weekday vs weekend, or a custom time range, would be useful for commuters with different schedules.
 
 ## Notes
 
