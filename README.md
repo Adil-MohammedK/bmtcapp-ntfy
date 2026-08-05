@@ -10,6 +10,12 @@ So the legal status of this project is unclear, and it may stop working at any t
 
 Also the fact that some of the code is AI generated. Any new features or bug fixes are appreciated, and please open an issue or PR if you have any suggestions.
 
+### Screenshots
+
+![WebUI](assets/webui.png)
+![NTFY Screenshot](assets/ntfy.jpeg)
+![Home Assistant Screenshot](assets/hass.jpeg)
+
 ## Prerequisites
 
 - Node.js 20 or newer (the SDK requires Node 18+)
