@@ -1,6 +1,8 @@
 # BMTC Live Tracker
 
-A full-stack tracker for live BMTC route vehicles using the `bengaluru-transit` TypeScript SDK. It starts on route **314-P** and destination stop **21945**, draws the route's reported stops, displays live buses, and queries each live vehicle's trip to list reported ETAs to the selected stop.
+A full-stack tracker for live BMTC route vehicles using the `bengaluru-transit` TypeScript SDK. It starts on route **314-P** and destination stop **21945** or any other routes/stops, draws the route's reported stops, displays live buses, and queries each live vehicle's trip to list reported ETAs to the selected stop. 
+
+Another major feature is the ability to send push notifications to your phone when a bus is approaching, using either the [ntfy](https://ntfy.sh/) service or Home Assistant's mobile app notifications. The server checks every minute in the morning and evening commute windows, and sends one alert per bus per window when the SDK returns an ETA of 10 minutes or less.
 
 A big thank you to the `bengaluru-transit` SDK [author](https://github.com/Sync271/bengaluru-transit) for making this possible. The SDK is a wrapper around the BMTC live-trip API, which is not officially documented or supported. 
 
