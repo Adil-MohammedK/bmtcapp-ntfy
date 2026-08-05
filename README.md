@@ -2,6 +2,14 @@
 
 A full-stack tracker for live BMTC route vehicles using the `bengaluru-transit` TypeScript SDK. It starts on route **314-P** and destination stop **21945**, draws the route's reported stops, displays live buses, and queries each live vehicle's trip to list reported ETAs to the selected stop.
 
+A big thank you to the `bengaluru-transit` SDK [author](https://github.com/Sync271/bengaluru-transit) for making this possible. The SDK is a wrapper around the BMTC live-trip API, which is not officially documented or supported. 
+
+> **⚠️ Disclaimer**: This is an **unofficial** SDK. It is not affiliated with, endorsed by, or connected to any official transit authority. This project is developed independently to solve a personal problem, and is not guaranteed to be reliable or accurate.
+
+So the legal status of this project is unclear, and it may stop working at any time if the BMTC API changes. Use at your own risk.
+
+Also the fact that some of the code is AI generated. Any new features or bug fixes are appreciated, and please open an issue or PR if you have any suggestions.
+
 ## Prerequisites
 
 - Node.js 20 or newer (the SDK requires Node 18+)
