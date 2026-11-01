@@ -10,15 +10,24 @@
   "options": {
     "step": {
       "init": {
-        "title": "Update BMTC stop",
+        "title": "Search for a BMTC stop",
         "data": {
-          "stop_id": "Stop ID",
+          "stop_query": "Stop name or ID",
+          "route": "Route number (optional)"
+        }
+      },
+      "select_stop": {
+        "title": "Select stop",
+        "description": "Choose the matching stop from the search results.",
+        "data": {
+          "stop_id": "Stop",
           "route": "Route number (optional)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Cannot reach the tracker service."
+      "cannot_connect": "Cannot reach the tracker service.",
+      "no_stops": "No stops matched that search."
     }
   }
 }

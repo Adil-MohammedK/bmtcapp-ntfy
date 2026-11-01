@@ -114,7 +114,7 @@ class BmtcLiveTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class BmtcLiveTrackerOptionsFlow(config_entries.OptionsFlow):
-    """Update the stop and route used by this integration entry."""
+    """Search for and select the stop and route used by this entry."""
 
     def __init__(self, config_entry) -> None:
         self._config_entry = config_entry
@@ -122,34 +122,35 @@ class BmtcLiveTrackerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         errors = {}
         if user_input is not None:
-            stop_id = user_input[CONF_STOP_ID].strip()
-            route = user_input.get(CONF_ROUTE, "").strip()
-            try:
-                await BmtcApi(
-                    async_get_clientsession(self.hass),
-                    self._config_entry.data[CONF_TRACKER_URL],
-                ).stop_snapshot(stop_id, route)
-            except BmtcApiError:
-                errors["base"] = "cannot_connect"
+            stop_query = user_input[CONF_STOP_QUERY].strip()
+            self._route = user_input.get(CONF_ROUTE, "").strip()
+            if not stop_query:
+                errors["base"] = "no_stops"
             else:
-                return self.async_create_entry(
-                    title="",
-                    data={
-                        CONF_STOP_ID: stop_id,
-                        CONF_ROUTE: route,
-                        CONF_SCAN_INTERVAL: self._config_entry.options.get(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                    },
-                )
+                try:
+                    results = await BmtcApi(
+                        async_get_clientsession(self.hass),
+                        self._config_entry.data[CONF_TRACKER_URL],
+                    ).search_stops(stop_query)
+                except BmtcApiError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    self._stop_results = list(
+                        {item["stationId"]: item for item in results}.values()
+                    )
+                    if not self._stop_results:
+                        errors["base"] = "no_stops"
+                    else:
+                        return await self.async_step_select_stop()
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
                 vol.Required(
-                    CONF_STOP_ID,
-                    default=self._config_entry.options.get(
+                    CONF_STOP_QUERY,
+                    default=str(self._config_entry.options.get(
                         CONF_STOP_ID, self._config_entry.data[CONF_STOP_ID]
-                    ),
+                    )),
                 ): TextSelector(),
                 vol.Optional(
                     CONF_ROUTE,
@@ -157,6 +158,43 @@ class BmtcLiveTrackerOptionsFlow(config_entries.OptionsFlow):
                         CONF_ROUTE, self._config_entry.data.get(CONF_ROUTE, "")
                     ),
                 ): TextSelector(),
+            }),
+            errors=errors,
+        )
+
+    async def async_step_select_stop(self, user_input: dict[str, Any] | None = None):
+        errors = {}
+        if user_input is not None:
+            stop_id = user_input[CONF_STOP_ID]
+            try:
+                await BmtcApi(
+                    async_get_clientsession(self.hass),
+                    self._config_entry.data[CONF_TRACKER_URL],
+                ).stop_snapshot(stop_id, self._route)
+            except BmtcApiError:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        CONF_STOP_ID: stop_id,
+                        CONF_ROUTE: self._route,
+                        CONF_SCAN_INTERVAL: self._config_entry.options.get(
+                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                        ),
+                    },
+                )
+
+        options = [
+            {"value": item["stationId"], "label": f'{item["stationName"]} ({item["stationId"]})'}
+            for item in self._stop_results
+        ]
+        return self.async_show_form(
+            step_id="select_stop",
+            data_schema=vol.Schema({
+                vol.Required(CONF_STOP_ID): SelectSelector(
+                    SelectSelectorConfig(options=options)
+                ),
             }),
             errors=errors,
         )
