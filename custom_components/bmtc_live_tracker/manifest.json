@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "codeowners": [],
   "config_flow": true,
-  "documentation": "https://github.com/Sync271/bengaluru-transit",
+  "documentation": "https://github.com/Adil-MohammedK/bmtcapp-ntfy",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "requirements": []

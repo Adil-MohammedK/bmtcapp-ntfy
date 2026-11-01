@@ -166,7 +166,10 @@ mode: queued
 ```
 
 <!-- Add a video -->
-![BMTC bus alert example](assets/bmtc-alert.mov)
+<video src="assets/bmtc-alert.mp4" width="500" controls>
+  Your browser does not support the video tag.
+</video>
+
 
 Replace the example sensor, person, and notify entity IDs with yours. You can add further notification actions, or use your configured TTS integration in the same automation. For a stop tracking all routes, use the `buses` attribute and template-filter by route and ETA; separate integration entries can also be used for weekday and weekend routes.
 
