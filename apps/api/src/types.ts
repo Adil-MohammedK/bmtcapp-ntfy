@@ -37,6 +37,7 @@ export interface TrackerSnapshot {
 
 export interface StopBus extends ApproachingBus {
   routeNo: string;
+  arrivalTime: string | null;
 }
 
 export interface StopSnapshot {

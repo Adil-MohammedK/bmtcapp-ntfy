@@ -3,10 +3,17 @@
     "step": {
       "user": {
         "title": "Connect BMTC Live Tracker",
-        "description": "Track every bus approaching a stop, optionally limited to one route.",
+        "description": "Enter the tracker URL and search for your BMTC stop.",
         "data": {
           "tracker_url": "Tracker URL",
-          "stop_id": "Stop ID",
+          "stop_query": "Stop name or ID"
+        }
+      },
+      "select_stop": {
+        "title": "Select stop",
+        "description": "Choose the stop to monitor. Optionally filter by a route number.",
+        "data": {
+          "stop_id": "Stop",
           "route": "Route number (optional)"
         }
       }
@@ -16,7 +23,21 @@
       "no_stops": "The selected route did not return any stops."
     },
     "abort": {
-      "already_configured": "This route and stop are already configured."
+      "already_configured": "This stop and route are already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update BMTC stop",
+        "data": {
+          "stop_id": "Stop ID",
+          "route": "Route number (optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the tracker service."
     }
   }
 }

@@ -8,7 +8,13 @@ import logging
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import BmtcApi, BmtcApiError
-from .const import CONF_ROUTE, CONF_SCAN_INTERVAL, CONF_STOP_ID, DOMAIN
+from .const import (
+    CONF_ROUTE,
+    CONF_SCAN_INTERVAL,
+    CONF_STOP_ID,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 
 class BmtcDataUpdateCoordinator(DataUpdateCoordinator):
@@ -19,13 +25,20 @@ class BmtcDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             logger=logging.getLogger(__name__),
             name=DOMAIN,
-            update_interval=timedelta(seconds=entry.options.get(CONF_SCAN_INTERVAL, 60)),
+            update_interval=timedelta(
+                seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ),
         )
         self.entry = entry
         self.api = api
 
     async def _async_update_data(self):
         try:
-            return await self.api.stop_snapshot(self.entry.data[CONF_STOP_ID], self.entry.data.get(CONF_ROUTE, ""))
+            return await self.api.stop_snapshot(
+                self.entry.options.get(CONF_STOP_ID, self.entry.data[CONF_STOP_ID]),
+                self.entry.options.get(
+                    CONF_ROUTE, self.entry.data.get(CONF_ROUTE, "")
+                ),
+            )
         except BmtcApiError as err:
             raise UpdateFailed(str(err)) from err

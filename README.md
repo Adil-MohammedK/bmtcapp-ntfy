@@ -2,7 +2,7 @@
 
 A full-stack tracker for live BMTC route vehicles using the `bengaluru-transit` TypeScript SDK. It starts on route **314-P** and destination stop **21945** or any other routes/stops, draws the route's reported stops, displays live buses, and queries each live vehicle's trip to list reported ETAs to the selected stop. 
 
-Another major feature is the ability to send push notifications to your phone when a bus is approaching, using either the [ntfy](https://ntfy.sh/) service or Home Assistant's mobile app notifications. The server checks every minute in the morning and evening commute windows, and sends one alert per bus per window when the SDK returns an ETA of 10 minutes or less.
+The tracker exposes live transit data over HTTP. Home Assistant can consume that API through the included custom integration, then use its own automations, presence entities, schedules, scripts, and notification integrations to decide when and how to alert you.
 
 A big thank you to the `bengaluru-transit` SDK [author](https://github.com/Sync271/bengaluru-transit) for making this possible. The SDK is a wrapper around the BMTC live-trip API, which is not officially documented or supported. 
 
@@ -44,35 +44,11 @@ Open `http://localhost:3001`. The container serves the built frontend and the Ex
 
 - `GET /health`
 - `GET /api/routes?q=314-P`
+- `GET /api/stops?q=Ganesha%20Temple`
 - `GET /api/tracker?route=314-P&stop=21945`
 - `GET /api/stop?stop=21945&route=314-P` (`route` is optional; omit it for every route serving the stop)
-- `GET /api/monitor/status`
-- `POST /api/monitor/check` (runs an immediate notification check)
-- `POST /api/monitor/test` (sends a test notification; requires its token header)
 
-`/api/tracker` returns GeoJSON feature collections for stops and live vehicles, the selected stop if it occurs on the route, and a sorted `approaching` list. Live trip lookups occur server-side and failures for an individual vehicle do not fail the whole refresh.
-
-## Phone alerts
-
-Copy `.env.example` to `.env`, then configure either provider or **both**:
-
-- **ntfy:** Install the ntfy app, subscribe to a new private topic, then set `NTFY_TOPIC`. Set `NTFY_URL` only if you use a self-hosted ntfy server.
-- **Home Assistant:** Create a long-lived access token and find your phone's `notify.mobile_app_*` service. Set `HA_URL`, `HA_TOKEN`, and the service suffix in `HA_NOTIFY_SERVICE`.
-
-When both are configured, every test and live alert is delivered to both ntfy and Home Assistant. Set `INFO=true` to log monitor starts, windows, and delivery results; use `DEBUG=true` for per-bus ETA and delivery detail.
-
-Live ntfy alerts include a `bmtc-live-location.png` OpenStreetMap image centred on the bus's latest reported location. The default is a map tile URL, avoiding the unreliable static-map PHP endpoint. To use a self-hosted or preferred static-map provider, set `NTFY_MAP_IMAGE_URL_TEMPLATE`; it supports `{lat}`, `{lon}` (or `{lng}`), and `{zoom}` replacements.
-
-The server checks every minute in `Asia/Kolkata`: routes **314-A** and **314-B** in the **UP** direction from 8:00 AM to 10:30 AM for stop **21945**, then in the **DOWN** direction from 4:00 PM to 6:30 PM for stop **21702**. It sends one alert per bus per window when the SDK returns an ETA of 10 minutes or less. Use the `MORNING_*`, `EVENING_*`, and `ALERT_ETA_MINUTES` environment values to adjust that behavior.
-
-To test your phone setup immediately, set a long random `NOTIFICATION_TEST_TOKEN` in `.env`, restart the API, then run:
-
-```bash
-curl -X POST http://localhost:3001/api/monitor/test \
-  -H "x-notification-test-token: YOUR_TOKEN"
-```
-
-This sends a real test push but does not depend on the monitoring time window or live bus data.
+`/api/stops` searches by stop name and also accepts a numeric stop ID. `/api/tracker` returns GeoJSON for a route and its stops/live vehicles; `/api/stop` returns the live buses and ETAs reported for a stop.
 
 ## Structure
 
@@ -89,16 +65,39 @@ The included custom integration consumes this project's tracker API; the API mus
 
 1. Copy the **contents** of `custom_components/bmtc_live_tracker` into Home Assistant's `config/custom_components/bmtc_live_tracker` directory. The resulting folder must contain `manifest.json` directly (not an extra nested `bmtc_live_tracker` folder). Restart Home Assistant.
 2. Go to **Settings → Devices & services → Add integration**, then select **BMTC Live Tracker**.
-3. Enter the tracker URL and stop ID. Leave the route empty to track all buses serving that stop, or enter a route to filter the stop to that service.
+3. Enter the tracker URL and a stop name or ID, then select the matching stop. Optionally enter a route number to narrow the results; leave it empty to include all routes serving that stop.
 
-The integration creates a **Next bus ETA** sensor whose state is the next reported arrival in minutes. Its attributes include every currently reported bus, its route and ETA. It also adds a `device_tracker` entity for every bus whose live position is reported, which appears on Home Assistant's Map. Change the stop or route filter by removing and adding the integration again.
+The integration creates a **Next bus ETA** sensor, an ETA sensor for each live bus, and a `device_tracker` entity for each bus with a reported location. ETA sensor attributes include the estimated wall-clock `arrival_time` in `Asia/Kolkata`, plus vehicle ID, route, direction, next stop, and position. Configure another integration entry for each stop/route combination you want to monitor; update an entry's stop or route from its options.
 
-## Future work
+Use the resulting entities in Home Assistant automations. This keeps schedules, weekday/weekend routes, home/away checks, and notification providers configurable in HA rather than in API environment variables. For example, an automation can watch a bus ETA sensor, check a `person` entity and weekday condition, then call one or more `notify.*` actions. Separate integration entries let automations choose different stops or routes on weekends.
 
-- Add a route selector and stop selector to the web interface
-- Show all routes for a selected stop
-- Home Assistant integration to show live vehicles and ETAs in the HA dashboard
-- Option to select a different time window for monitoring. Weekday vs weekend, or a custom time range, would be useful for commuters with different schedules.
+```yaml
+alias: BMTC weekday commute alert
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.bmtc_stop_next_bus_eta
+    below: 10
+conditions:
+  - condition: state
+    entity_id: person.adil
+    state: home
+  - condition: time
+    weekday: [mon, tue, wed, thu, fri]
+actions:
+  - action: notify.mobile_app_phone
+    data:
+      title: Bus approaching
+      message: "Next bus ETA: {{ states('sensor.bmtc_stop_next_bus_eta') }} minutes"
+  - action: notify.ntfy
+    data:
+      title: Bus approaching
+      message: "Next bus ETA: {{ states('sensor.bmtc_stop_next_bus_eta') }} minutes"
+mode: single
+```
+
+Replace the example entity and notify service IDs with yours. Add a second integration entry for a weekend route and use a separate automation or a `choose` action to select the matching weekday/weekend sensor.
+
+The API itself does not send notifications or decide when a commute is active. Configure those behaviors in HA using automations, scripts, helpers, and any installed notification integrations.
 
 ## Notes
 
