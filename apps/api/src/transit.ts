@@ -9,6 +9,7 @@ const client = new BengaluruTransitClient({ language: "en" }) as unknown as {
     searchByRouteDetails(input: { parentRouteId: string }): Promise<{ up: DirectionDetails; down: DirectionDetails }>;
     getStationTrips(input: { stationId: string; tripType: "running" }): Promise<{ items: Array<{ routeNo: string; routeName: string; fromStationName: string; toStationName: string; vehicleId: string; busNo: string; arrivalTime?: string; deviceStatusFlag: number }> }>;
   };
+  stops: { searchBusStops(input: { stationName: string }): Promise<{ items: Array<{ stationId: string; stationName: string }> }> };
   vehicles: { getVehicleTrip(input: { vehicleId: string }): Promise<{ routeStops: GeoCollection }> };
 };
 
@@ -34,6 +35,101 @@ function stopId(feature: GeoFeature): string | null {
   return asText(feature.properties.stopId ?? feature.properties.id ?? feature.properties.stop_id);
 }
 
+export function arrivalTimeToEtaMinutes(
+  value: string | undefined,
+  now = Date.now(),
+): number | null {
+  const bmtcMatch = value?.match(/^(\d{2})-(\d{2})-(\d{4}) (\d{2}):(\d{2}):(\d{2})$/);
+  const isoMatch = value?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})$/);
+  const match = bmtcMatch ?? isoMatch;
+  if (!match) {
+    if (!value || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) && timestamp >= now
+      ? Math.ceil((timestamp - now) / 60_000)
+      : null;
+  }
+
+  const [, first, second, third, hour, minute, seconds] = match;
+  const [day, month, year] = bmtcMatch
+    ? [first, second, third]
+    : [third, second, first];
+  const utcTime = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(seconds),
+  );
+  const arrivalTime = utcTime - (5 * 60 + 30) * 60_000;
+  const date = new Date(utcTime);
+  if (
+    date.getUTCFullYear() !== Number(year)
+    || date.getUTCMonth() !== Number(month) - 1
+    || date.getUTCDate() !== Number(day)
+    || date.getUTCHours() !== Number(hour)
+    || date.getUTCMinutes() !== Number(minute)
+    || date.getUTCSeconds() !== Number(seconds)
+  ) {
+    return null;
+  }
+
+  const minutesRemaining = (arrivalTime - now) / 60_000;
+  return minutesRemaining < 0 ? null : Math.ceil(minutesRemaining);
+}
+
+function clockTimeToEtaMinutes(value: string, now = Date.now()): number | null {
+  const match = value.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(now));
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
+  const arrivalTime = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    Number(match[1]),
+    Number(match[2]),
+  ) - (5 * 60 + 30) * 60_000;
+  const minutesRemaining = (arrivalTime - now) / 60_000;
+  return minutesRemaining < 0 ? null : Math.ceil(minutesRemaining);
+}
+
+function normalizeEta(value: unknown, fallback: string | undefined): string | number | null {
+  const eta = asText(value)?.trim();
+  if (eta) {
+    if (/^([01]?\d|2[0-3]):([0-5]\d)$/.test(eta)) {
+      return clockTimeToEtaMinutes(eta) ?? arrivalTimeToEtaMinutes(fallback);
+    }
+    const isDateTime = /^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/.test(eta)
+      || /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(eta);
+    if (!isDateTime) return eta;
+    return arrivalTimeToEtaMinutes(eta) ?? arrivalTimeToEtaMinutes(fallback);
+  }
+  return arrivalTimeToEtaMinutes(fallback);
+}
+
+function normalizeArrivalTime(value: unknown, fallback: string | undefined): string | null {
+  const eta = asText(value)?.trim();
+  const clock = eta?.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (clock) return `${clock[1].padStart(2, "0")}:${clock[2]}`;
+
+  const timestamp = eta ?? fallback;
+  const bmtcMatch = timestamp?.match(/^\d{2}-(\d{2})-\d{4} (\d{2}:\d{2}):\d{2}$/);
+  if (bmtcMatch) return bmtcMatch[2];
+
+  const isoMatch = timestamp?.match(/^\d{4}-\d{2}-\d{2}[T ](\d{2}:\d{2}):\d{2}/);
+  if (isoMatch) return isoMatch[1];
+
+  return null;
+}
+
 async function etaForVehicle(feature: GeoFeature, direction: "up" | "down", targetStopId: string): Promise<ApproachingBus | null> {
   const vehicleId = asText(feature.properties.vehicleId ?? feature.properties.vehicle_id ?? feature.properties.id);
   if (!vehicleId) return null;
@@ -46,7 +142,10 @@ async function etaForVehicle(feature: GeoFeature, direction: "up" | "down", targ
     vehicleNumber: asText(feature.properties.vehicleNumber ?? feature.properties.vehicle_number) ?? vehicleId,
     direction,
     position: feature.geometry.coordinates as Position,
-    eta: target ? asText(target.properties.eta) : null,
+    eta: normalizeEta(
+      target?.properties.eta ?? feature.properties.eta,
+      undefined,
+    ),
     nextStop: target ? asText(target.properties.nextStop ?? target.properties.next_stop) : asText(feature.properties.nextStop ?? feature.properties.next_stop),
     routeNo: target ? asText(target.properties.routeNo ?? target.properties.route_no) : null,
     servesTarget: target !== undefined,
@@ -97,7 +196,8 @@ export async function getStopSnapshot(targetStopId: string, routeFilter?: string
         vehicleNumber: item.busNo || item.vehicleId,
         direction: (asText(vehicle?.properties.direction) ?? "up").toLowerCase() === "down" ? "down" : "up",
         position: (vehicle?.geometry.coordinates ?? [0, 0]) as Position,
-        eta: target ? asText(target.properties.eta) : asText(item.arrivalTime),
+        eta: normalizeEta(target?.properties.eta, item.arrivalTime),
+        arrivalTime: normalizeArrivalTime(target?.properties.eta, item.arrivalTime),
         nextStop: target ? asText(target.properties.nextStop ?? target.properties.next_stop) : null,
         routeNo: item.routeNo,
         servesTarget: true,
@@ -114,6 +214,12 @@ export async function getStopSnapshot(targetStopId: string, routeFilter?: string
 export async function searchRoutes(query: string) {
   const result = await client.routes.searchRoutes({ query });
   return result.items.map((item) => ({ parentRouteId: item.parentRouteId, routeNo: asText(item.routeNo ?? item.route_no) ?? query }));
+}
+
+export async function searchStops(query: string) {
+  if (/^\d+$/.test(query)) return [{ stationId: query, stationName: `Stop ${query}` }];
+  const result = await client.stops.searchBusStops({ stationName: query });
+  return result.items.map((item) => ({ stationId: item.stationId, stationName: item.stationName }));
 }
 
 export interface LiveStopBus {

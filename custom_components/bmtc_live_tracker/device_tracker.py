@@ -3,7 +3,7 @@
 from homeassistant.components.device_tracker import TrackerEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ROUTE, DOMAIN
+from .const import CONF_STOP_ID, DOMAIN
 from .coordinator import BmtcDataUpdateCoordinator
 
 
@@ -36,7 +36,10 @@ class BmtcBusTracker(CoordinatorEntity[BmtcDataUpdateCoordinator], TrackerEntity
         self._vehicle_id = str(bus["vehicleId"])
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{self._vehicle_id}"
         self._attr_name = str(bus.get("vehicleNumber") or self._vehicle_id)
-        self._attr_device_info = {"identifiers": {(DOMAIN, coordinator.entry.entry_id)}, "name": f"BMTC stop {coordinator.entry.data.get('stop_id')}", "manufacturer": "BMTC", "model": "Live stop tracker"}
+        stop_id = coordinator.entry.options.get(
+            CONF_STOP_ID, coordinator.entry.data.get(CONF_STOP_ID)
+        )
+        self._attr_device_info = {"identifiers": {(DOMAIN, coordinator.entry.entry_id)}, "name": f"BMTC stop {stop_id}", "manufacturer": "BMTC", "model": "Live stop tracker"}
 
     def _feature(self):
         return next((item for item in self.coordinator.data.get("buses", []) if str(item.get("vehicleId")) == self._vehicle_id), None)
@@ -54,4 +57,9 @@ class BmtcBusTracker(CoordinatorEntity[BmtcDataUpdateCoordinator], TrackerEntity
     @property
     def extra_state_attributes(self):
         feature = self._feature()
-        return feature if feature else {"unavailable": True}
+        if not feature:
+            return {"unavailable": True}
+        return {
+            **feature,
+            "stop_id": self.coordinator.data.get("stopId"),
+        }
