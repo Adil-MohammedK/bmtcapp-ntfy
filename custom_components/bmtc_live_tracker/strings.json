@@ -1,0 +1,10 @@
+{
+  "config": {
+    "step": {
+      "user": {"title": "Connect BMTC Live Tracker", "description": "Enter the URL of the running tracker service and the route to track.", "data": {"tracker_url": "Tracker URL", "route": "Route number"}},
+      "stop": {"title": "Select destination stop", "description": "Only stops reported by the selected route are listed.", "data": {"stop_id": "Destination stop"}}
+    },
+    "error": {"cannot_connect": "Cannot reach the tracker service.", "no_stops": "The selected route did not return any stops."},
+    "abort": {"already_configured": "This route and stop are already configured."}
+  }
+}

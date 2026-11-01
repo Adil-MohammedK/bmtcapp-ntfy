@@ -1,0 +1,11 @@
+{
+  "domain": "bmtc_live_tracker",
+  "name": "BMTC Live Tracker",
+  "version": "1.0.0",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/Sync271/bengaluru-transit",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "requirements": []
+}

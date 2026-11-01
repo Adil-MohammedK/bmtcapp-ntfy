@@ -71,7 +71,29 @@ function minutesFromEta(eta: ApproachingBus["eta"]): number | null {
   return match ? Number(match[0]) : null;
 }
 
-function postToNtfy(url: string, title: string, message: string): Promise<number> {
+function busMapImageUrl(position: [number, number]): string {
+  const [longitude, latitude] = position;
+  const zoom = 16;
+  // Attach one OpenStreetMap raster tile centred around the bus. Tile URLs are
+  // plain .png files (unlike the old static-map PHP endpoint), so ntfy can
+  // reliably download and render them without parsing a complex query string.
+  const tiles = 2 ** zoom;
+  const x = Math.floor(((longitude + 180) / 360) * tiles);
+  const latitudeRadians = Math.max(-85.05112878, Math.min(85.05112878, latitude)) * Math.PI / 180;
+  const y = Math.floor((1 - Math.asinh(Math.tan(latitudeRadians)) / Math.PI) / 2 * tiles);
+
+  // Set NTFY_MAP_IMAGE_URL_TEMPLATE to use a self-hosted/static-map provider
+  // instead. Available replacements are {lat}, {lon}, {lng}, and {zoom}.
+  const template = process.env.NTFY_MAP_IMAGE_URL_TEMPLATE
+    ?? `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+  return template
+    .replaceAll("{lat}", latitude.toFixed(6))
+    .replaceAll("{lon}", longitude.toFixed(6))
+    .replaceAll("{lng}", longitude.toFixed(6))
+    .replaceAll("{zoom}", String(zoom));
+}
+
+function postToNtfy(url: string, title: string, message: string, attachmentUrl?: string): Promise<number> {
   // Node's HTTPS headers reject Unicode (for example, an em dash). The body
   // still carries the full text; use a safe ASCII title header for ntfy.
   const headerTitle = title.replace(/[^\x20-\x7E]/g, "-");
@@ -81,7 +103,14 @@ function postToNtfy(url: string, title: string, message: string): Promise<number
       // Some networks advertise unusable IPv6 routes; curl commonly falls back
       // while Node's fetch may not. IPv4 is configurable for IPv6-only setups.
       family: process.env.NTFY_FORCE_IPV4 === "false" ? undefined : 4,
-      headers: { Title: headerTitle, Tags: "bus,warning", Priority: "high", "Content-Type": "text/plain; charset=utf-8", "Content-Length": Buffer.byteLength(message) },
+      headers: {
+        Title: headerTitle,
+        Tags: "bus,warning",
+        Priority: "high",
+        ...(attachmentUrl ? { Attach: attachmentUrl, Filename: "bmtc-live-location.png" } : {}),
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Length": Buffer.byteLength(message),
+      },
     }, (response) => {
       response.resume();
       response.on("end", () => resolve(response.statusCode ?? 0));
@@ -91,10 +120,10 @@ function postToNtfy(url: string, title: string, message: string): Promise<number
   });
 }
 
-async function notifyNtfy(title: string, message: string) {
+async function notifyNtfy(title: string, message: string, attachmentUrl?: string) {
     const baseUrl = (process.env.NTFY_URL ?? "https://ntfy.sh").replace(/\/$/, "");
     try {
-      const status = await postToNtfy(`${baseUrl}/${encodeURIComponent(process.env.NTFY_TOPIC!)}`, title, message);
+      const status = await postToNtfy(`${baseUrl}/${encodeURIComponent(process.env.NTFY_TOPIC!)}`, title, message, attachmentUrl);
       if (status < 200 || status >= 300) throw new Error(`ntfy returned ${status}`);
     } catch (error) {
       const detail = error instanceof Error ? error.cause instanceof Error ? error.cause.message : error.message : "unknown network error";
@@ -107,10 +136,10 @@ async function notifyHomeAssistant(title: string, message: string) {
   if (!response.ok) throw new Error(`Home Assistant returned ${response.status}`);
 }
 
-async function notify(title: string, message: string, targets = providers()): Promise<NotifyResult> {
+async function notify(title: string, message: string, targets = providers(), attachmentUrl?: string): Promise<NotifyResult> {
   const outcomes = await Promise.all(targets.map(async (target) => {
     try {
-      if (target === "ntfy") await notifyNtfy(title, message);
+      if (target === "ntfy") await notifyNtfy(title, message, attachmentUrl);
       else await notifyHomeAssistant(title, message);
       info(`Delivered notification through ${target}`);
       return { target, error: null };
@@ -127,17 +156,21 @@ export async function sendTestNotification() {
   const configured = providers();
   if (!configured.length) throw new Error("Configure NTFY_TOPIC and/or Home Assistant notification settings first");
   const testStopId = "21945";
+  // The station-trip test endpoint does not provide the vehicle coordinates.
+  // Attach a clearly labelled Bengaluru sample map so ntfy attachment delivery
+  // can still be verified without waiting for an approaching live bus.
+  const sampleMap = busMapImageUrl([77.5946, 12.9716]);
   try {
     const bus = await getAnyLiveBusAtStop(testStopId);
     if (bus) {
       const stop = bus.targetStopName ? `${bus.targetStopName} (stop ${testStopId})` : `stop ${testStopId}`;
       const eta = bus.eta ? `\nReported ETA: ${bus.eta}` : "";
-      return notify("BMTC tracker test — live bus found", `Live service currently reported for stop ${testStopId}\nRoute: ${bus.routeNo}\nBus: ${bus.vehicleNumber}\nRoute: ${bus.routeStart} → ${bus.routeEnd}\nDestination: ${stop}${eta}\n\nLive alerts will use the same notification channels.`, configured);
+      return notify("BMTC tracker test — live bus found", `Live service currently reported for stop ${testStopId}\nRoute: ${bus.routeNo}\nBus: ${bus.vehicleNumber}\nRoute: ${bus.routeStart} → ${bus.routeEnd}\nDestination: ${stop}${eta}\n\nA sample Bengaluru map is attached; live alerts attach the bus's actual location.`, configured, sampleMap);
     }
   } catch (error) {
     debug("Live test lookup failed; using sample notification", error);
   }
-  return notify("BMTC tracker test — sample data", "No currently running service was found for stop 21945, so this is sample data.\nRoute: 314-A · UP\nBus: KA-01-AB-1234\nRoute: Shivajinagara Bus Station → Malleshpalya New Bus Station\nDestination: Ganesha Temple Thippasandra (stop 21945)\nSample ETA: about 8 minutes\n\nLive alerts will use the same notification channels.", configured);
+  return notify("BMTC tracker test — sample data", "No currently running service was found for stop 21945, so this is sample data.\nRoute: 314-A · UP\nBus: KA-01-AB-1234\nRoute: Shivajinagara Bus Station → Malleshpalya New Bus Station\nDestination: Ganesha Temple Thippasandra (stop 21945)\nSample ETA: about 8 minutes\n\nA sample Bengaluru map is attached; live alerts attach the bus's actual location.", configured, sampleMap);
 }
 
 async function checkRoute(routeNo: string, direction: "up" | "down", window: "morning" | "evening", targetStopId: string) {
@@ -150,7 +183,8 @@ async function checkRoute(routeNo: string, direction: "up" | "down", window: "mo
     if (!missingProviders.length) continue;
     const target = bus.targetStopName ? `${bus.targetStopName} (stop ${targetStopId})` : `stop ${targetStopId}`;
     const journey = bus.routeStart && bus.routeEnd ? `\nRoute: ${bus.routeStart} → ${bus.routeEnd}` : "";
-    const result = await notify("BMTC bus approaching", `Route: ${routeNo} · ${bus.direction.toUpperCase()}\nBus: ${bus.vehicleNumber}${journey}\nDestination: ${target}\nETA: about ${Math.ceil(eta)} min.`, missingProviders);
+    const mapImage = busMapImageUrl(bus.position);
+    const result = await notify("BMTC bus approaching", `Route: ${routeNo} · ${bus.direction.toUpperCase()}\nBus: ${bus.vehicleNumber}${journey}\nDestination: ${target}\nETA: about ${Math.ceil(eta)} min.\n\nLive location map is attached.`, missingProviders, mapImage);
     result.sent.forEach((target) => delivered.add(`${key}:${target}`));
     if (result.errors.length) lastError = result.errors.join("; ");
     debug(`Checked ${routeNo} ${bus.vehicleNumber}: ETA ${eta}, sent through ${result.sent.join(", ") || "none"}`);

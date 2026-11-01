@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getTrackerSnapshot, searchRoutes } from "./transit.js";
+import { getStopSnapshot, getTrackerSnapshot, searchRoutes } from "./transit.js";
 import { getMonitorStatus, runMonitor, sendTestNotification, startMonitor } from "./monitor.js";
 
 const app = express();
@@ -34,6 +34,12 @@ app.get("/api/tracker", async (req, res, next) => {
   const routeNo = String(req.query.route ?? "314-P").trim();
   const stopId = String(req.query.stop ?? "21945").trim();
   try { res.json(await getTrackerSnapshot(routeNo, stopId)); } catch (error) { next(error); }
+});
+app.get("/api/stop", async (req, res, next) => {
+  const stopId = String(req.query.stop ?? "").trim();
+  const route = String(req.query.route ?? "").trim();
+  if (!stopId) return res.status(400).json({ error: "A stop query parameter is required" });
+  try { res.json(await getStopSnapshot(stopId, route || undefined)); } catch (error) { next(error); }
 });
 app.use(express.static(webRoot));
 app.get("*", (_req, res, next) => {

@@ -1,5 +1,5 @@
 import { BengaluruTransitClient } from "bengaluru-transit";
-import type { ApproachingBus, GeoCollection, GeoFeature, Position, TrackerSnapshot } from "./types.js";
+import type { ApproachingBus, GeoCollection, GeoFeature, Position, StopBus, StopSnapshot, TrackerSnapshot } from "./types.js";
 
 // The SDK returns GeoJSON. Keeping the small adapter here makes SDK upgrades
 // isolated from the HTTP contract consumed by the frontend.
@@ -60,6 +60,55 @@ function etaSortValue(eta: ApproachingBus["eta"]): number {
   if (typeof eta === "number") return eta;
   const parsed = Number.parseFloat(eta ?? "");
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+async function liveVehicleLocations(routeNo: string): Promise<Map<string, GeoFeature>> {
+  const routes = await client.routes.searchRoutes({ query: routeNo });
+  const route = routes.items[0];
+  if (!route) return new Map();
+  const details = await client.routes.searchByRouteDetails({ parentRouteId: route.parentRouteId });
+  const vehicles = [
+    ...withDirection(details.up.liveVehicles ?? emptyCollection(), "up").features,
+    ...withDirection(details.down.liveVehicles ?? emptyCollection(), "down").features,
+  ];
+  const locations = new Map<string, GeoFeature>();
+  for (const vehicle of vehicles) {
+    const id = asText(vehicle.properties.vehicleId ?? vehicle.properties.vehicle_id ?? vehicle.properties.id);
+    if (id) locations.set(id, vehicle);
+  }
+  return locations;
+}
+
+/** Lists all running buses reported for a stop, optionally limited to one route. */
+export async function getStopSnapshot(targetStopId: string, routeFilter?: string): Promise<StopSnapshot> {
+  const stationTrips = await client.routes.getStationTrips({ stationId: targetStopId, tripType: "running" });
+  const matching = stationTrips.items.filter((item) => !routeFilter || item.routeNo.toLowerCase() === routeFilter.toLowerCase());
+  const routeLocations = new Map<string, Map<string, GeoFeature>>();
+  await Promise.all([...new Set(matching.map((item) => item.routeNo))].map(async (routeNo) => {
+    try { routeLocations.set(routeNo, await liveVehicleLocations(routeNo)); } catch { routeLocations.set(routeNo, new Map()); }
+  }));
+  const buses = await Promise.all(matching.map(async (item): Promise<StopBus | null> => {
+    try {
+      const vehicle = routeLocations.get(item.routeNo)?.get(item.vehicleId);
+      const trip = await client.vehicles.getVehicleTrip({ vehicleId: item.vehicleId });
+      const target = trip.routeStops.features.find((stop) => stopId(stop) === targetStopId);
+      return {
+        vehicleId: item.vehicleId,
+        vehicleNumber: item.busNo || item.vehicleId,
+        direction: (asText(vehicle?.properties.direction) ?? "up").toLowerCase() === "down" ? "down" : "up",
+        position: (vehicle?.geometry.coordinates ?? [0, 0]) as Position,
+        eta: target ? asText(target.properties.eta) : asText(item.arrivalTime),
+        nextStop: target ? asText(target.properties.nextStop ?? target.properties.next_stop) : null,
+        routeNo: item.routeNo,
+        servesTarget: true,
+        targetStopName: target ? asText(target.properties.stopName ?? target.properties.stop_name) : null,
+        routeStart: item.fromStationName,
+        routeEnd: item.toStationName,
+      };
+    } catch { return null; }
+  }));
+  const sorted = buses.filter((item): item is StopBus => item !== null).sort((a, b) => etaSortValue(a.eta) - etaSortValue(b.eta));
+  return { stopId: targetStopId, routeFilter: routeFilter || null, buses: sorted, nextBus: sorted[0] ?? null, refreshedAt: new Date().toISOString() };
 }
 
 export async function searchRoutes(query: string) {

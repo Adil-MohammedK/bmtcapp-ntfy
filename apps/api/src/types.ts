@@ -34,3 +34,15 @@ export interface TrackerSnapshot {
   approaching: ApproachingBus[];
   refreshedAt: string;
 }
+
+export interface StopBus extends ApproachingBus {
+  routeNo: string;
+}
+
+export interface StopSnapshot {
+  stopId: string;
+  routeFilter: string | null;
+  buses: StopBus[];
+  nextBus: StopBus | null;
+  refreshedAt: string;
+}
