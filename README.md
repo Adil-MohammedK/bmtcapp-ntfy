@@ -196,6 +196,13 @@ The service normalizes the upstream SDK response for the integration and web UI.
 
 GitHub Actions runs HACS repository validation and Home Assistant Hassfest on pushes, pull requests, and a daily schedule. Both checks must pass before publishing or submitting the integration.
 
+## Community and contributions
+
+Please follow the [Code of Conduct](./CODE_OF_CONDUCT.md) in project spaces. See
+the [Contributing guide](./CONTRIBUTING.md) before opening a pull request, and
+use the private reporting instructions in the [Security Policy](./SECURITY.md)
+for suspected vulnerabilities.
+
 ## Run locally and develop
 
 Requirements: Node.js 20 or newer and npm.

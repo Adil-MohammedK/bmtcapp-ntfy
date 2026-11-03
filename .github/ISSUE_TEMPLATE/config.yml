@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Home Assistant documentation
+    url: https://www.home-assistant.io/docs/
+    about: Check Home Assistant's documentation for general setup and automation questions.
