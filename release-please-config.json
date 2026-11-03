@@ -1,0 +1,29 @@
+{
+  "packages": {
+    ".": {
+      "extra-files": [
+        {
+          "jsonpath": "$.version",
+          "path": "package.json",
+          "type": "json"
+        },
+        {
+          "jsonpath": "$.version",
+          "path": "custom_components/bmtc_live_tracker/manifest.json",
+          "type": "json"
+        },
+        {
+          "jsonpath": "$.version",
+          "path": "package-lock.json",
+          "type": "json"
+        },
+        {
+          "jsonpath": "$.packages[''].version",
+          "path": "package-lock.json",
+          "type": "json"
+        }
+      ],
+      "release-type": "simple"
+    }
+  }
+}

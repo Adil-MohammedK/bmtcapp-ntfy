@@ -10,6 +10,11 @@ the Home Assistant integration, transit API, web app, and documentation.
 - Keep changes focused and explain any user-visible behavior changes.
 - Never include credentials, personal data, or other secrets in an issue or
   pull request.
+- Use [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)
+  messages (for example, `feat: add weekend route support` or
+  `fix: handle missing bus ETAs`). A `feat` commit triggers a minor release, a
+  `fix` commit triggers a patch release, and a breaking change triggers a major
+  release.
 
 ## Development setup
 
@@ -40,3 +45,11 @@ request. The GitHub Actions workflow runs HACS validation and Hassfest.
 
 By submitting a contribution, you agree that it will be distributed under the
 project's [MIT License](./LICENSE).
+
+## Releases
+
+Release Please checks commits pushed to `main` and opens or updates a release
+pull request when it finds releasable Conventional Commits. The PR updates the
+changelog and keeps the root package, npm lockfile, and Home Assistant
+integration versions in sync. Merging that PR publishes the corresponding
+versioned GitHub release.

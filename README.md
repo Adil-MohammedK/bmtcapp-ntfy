@@ -196,6 +196,11 @@ The service normalizes the upstream SDK response for the integration and web UI.
 
 GitHub Actions runs HACS repository validation and Home Assistant Hassfest on pushes, pull requests, and a daily schedule. Both checks must pass before publishing or submitting the integration.
 
+Release Please automates versioned releases from Conventional Commit messages.
+It opens a release pull request on `main`; merging that pull request publishes a
+GitHub release and updates the integration and package versions. See the
+[Contributing guide](./CONTRIBUTING.md#releases).
+
 ## Community and contributions
 
 Please follow the [Code of Conduct](./CODE_OF_CONDUCT.md) in project spaces. See
