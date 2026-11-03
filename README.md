@@ -192,6 +192,10 @@ The HTTP service is a data backend for the Home Assistant integration. It can al
 
 The service normalizes the upstream SDK response for the integration and web UI. Individual vehicle lookup failures do not fail the whole stop refresh.
 
+## Continuous integration
+
+GitHub Actions runs HACS repository validation and Home Assistant Hassfest on pushes, pull requests, and a daily schedule. Both checks must pass before publishing or submitting the integration.
+
 ## Run locally and develop
 
 Requirements: Node.js 20 or newer and npm.
