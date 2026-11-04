@@ -4,10 +4,10 @@
   "categories": ["vehicles_transport.public_transport"],
   "codeowners": ["@Adil-MohammedK"],
   "config_flow": true,
-  "documentation": "https://github.com/Adil-MohammedK/bmtcapp",
+  "documentation": "https://github.com/Adil-MohammedK/bmtcapp-ntfy",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/Adil-MohammedK/bmtcapp/issues",
+  "issue_tracker": "https://github.com/Adil-MohammedK/bmtcapp-ntfy/issues",
   "requirements": [],
   "version": "1.0.0"
 }
